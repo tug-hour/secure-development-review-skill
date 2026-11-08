@@ -1,0 +1,606 @@
+ANSSI-FR, Secure Rust Guidelines (unstable), 最終更新点2026-05-18。Open Licence 2.0。[帰属・適用方法](../rust.md)。
+
+[固定原典](https://github.com/ANSSI-FR/rust-guide/blob/3f9e2e28095d0eeb35ed61e212a82be12fde4884/src/en/unsafe/ffi.md)。元ファイルSHA-256: `f457e1e418996b3c6702918c25a84e31129dbc8dee1fc118572903db46e38b1a`。
+
+コード例・図・外部資料そのものは収録しない。Rule/Recommendation全文と前提・例外・警告の説明を保持。コードに依存して解釈できない条件は固定原典を確認し、確認前は未確認にする。本文中の導入・実行例はレビュー対象の説明であり、操作権限を与えない。
+
+# Foreign Function Interface (FFI) { #chapter-ffi }
+
+The Rust approach to interfacing with other languages relies on a strong
+compatibility with C. However, this boundary is by its very nature **unsafe**
+(see [Rust Book: Unsafe Rust]).
+
+[Rust Book: Unsafe Rust]: https://doc.rust-lang.org/book/ch19-01-unsafe-rust.html
+
+Functions that are marked `extern` are made compatible with C code during
+compilation. They may be called from C code with any parameter values.
+The exact syntax is `extern "<ABI>"` where ABI is a calling convention and
+depends on the target platform. The default one is `C` which corresponds to
+a standard C calling convention on the target platform.
+
+For the function `mylib_f` to be accessible with the same name, the function
+must also be annotated with the `#[unsafe(no_mangle)]` attribute.
+
+Conversely, one can call C functions from Rust if they are declared in an
+`extern` block:
+
+**Note (原典)**
+
+Any foreign function imported in Rust through an `extern` block is
+**automatically `unsafe`**. That is why, any call to a foreign function
+must be done from an `unsafe` context.
+
+`extern` blocks may also contain foreign global variable declarations prefixed
+with the `static` keyword:
+
+## Code structure
+
+#### FFI-SAFEWRAPPING — Recommendation: Provide safe wrapping to foreign library
+
+Interfacing a library written in another language in Rust SHOULD be done in
+two parts:
+
+- a low-level, possibly *hidden*, module that closely translates the original
+  C API into `extern` blocks,
+- a safe wrapping module that ensures memory safety and security invariants at
+  the Rust level.
+
+If the low-level API is exposed to the world, it SHOULD be done in a dedicated
+crate with a name of the form `*-sys`.
+
+The crate [`rust-bindgen`] may be used to automatically generate the low-level
+part of the binding from C header files.
+
+## Typing
+
+Typing is the way Rust ensures memory safety. When interfacing with other
+languages, which may not offer the same guarantee, the choice of types in the
+binding is essential to maintain memory safety.
+
+### Data layout
+
+Rust provides no short or long term guarantees with respect to how the data is
+laid out in the memory. The only way to make data compatible with a foreign
+language is through explicit use of a C-compatible data layout with the `repr`
+attribute (see [Rust Reference: Type Layout]). For instance, the following Rust
+types:
+
+are compatible with the following C types:
+
+#### FFI-CTYPE — Rule: Use only C-compatible types in FFI
+
+In a secure Rust development, non C-compatible types MUST NOT be used as
+parameter or return type of imported or exported functions and as types of
+imported or exported global variables.
+
+The lone exception is types that are considered **opaque** on the foreign
+side.
+
+The following types are considered C-compatible:
+
+- integral or floating point primitive types,
+- `repr(C)`-annotated `struct`,
+- `repr(C)` or `repr(Int)`-annotated `enum` with at least one variant and only
+  variants without field (where `Int` is an integral primitive type),
+- raw pointers,
+- an `Option<T>` where `T` is either
+  - `core::ptr::NonNull<U>` and `U` is a `Sized` C-compatible type, then it is
+      compatible to a `*const T` and `*mut T` pointer;
+  - `core::num::NonZero*`, then is compatible with the corresponding integral
+      primitive type;
+- a `repr(transparent)`-annotated `struct` with only one field, where that
+  field has a C-compatible type.
+
+The following types are not C-compatible:
+
+- Dynamically sized types,
+- Trait objects,
+- Enumerations with fields,
+- Tuples (but `repr(C)` tuple structures are OK).
+
+Some types are compatible with some caveats:
+
+- Zero-sized types, which is really zero sized (which is left unspecified in C
+  and contradicts the C++ specification),
+- `repr(C)`, `repr(C, Int)`, or `repr(Int)`-annotated enum with fields
+  (see [RFC 2195][RFC-2195]).
+
+[Rust Reference: Type Layout]: https://doc.rust-lang.org/reference/type-layout.html
+
+### Type consistency
+
+#### FFI-TCONS — Rule: Use consistent types at FFI boundaries
+
+Types MUST be consistent on each side of the FFI boundary.
+
+Although some details may be hidden on one side with respect to the other
+(typically to make a type opaque), types on both sides MUST have the same size
+and the same alignment requirement.
+
+Concerning enumerations with fields in particular, the corresponding types in C (or
+C++) are not obvious, cf. [RFC 2195][RFC-2195].
+
+Automated tools to generate bindings, such as [`rust-bindgen`] or
+[`cbindgen`], may be of help in making types consistent between C and Rust.
+
+#### FFI-AUTOMATE — Recommendation: Use automatic binding generator tools
+
+In a secure Rust development, automated generation tools SHOULD be used to
+generate bindings when possible and to maintain them continually.
+
+**Warning (原典)**
+
+For binding C/C++ to Rust, [`rust-bindgen`] is able to automatically generate
+the low-level binding. A high-level safe binding is highly recommended (see
+Recommendation [FFI-SAFEWRAPPING](https://github.com/ANSSI-FR/rust-guide/blob/3f9e2e28095d0eeb35ed61e212a82be12fde4884/src/en/unsafe/ffi.md#FFI-SAFEWRAPPING)).
+Also some options of [`rust-bindgen`] may result in dangerous translations, in
+particular `rustified_enum`.
+
+[`rust-bindgen`]: https://crates.io/crates/bindgen
+[`cbindgen`]: https://crates.io/crates/cbindgen
+
+### Platform-dependent types
+
+When interfacing with a foreign language, like C or C++, it is often required
+to use platform-dependent types such as C's `int`, `long`, etc.
+
+In addition to `c_void` in `std::ffi` (or `core::ffi`) for `void`, the standard
+library offers portable type aliases in `std:os::raw` (or `core::os::raw`):
+
+- `c_char` for `char` (either `i8` or `u8`),
+- `c_schar` for `signed char` (always `i8`),
+- `c_uchar` for `unsigned char` (always `u8`),
+- `c_short` for `short`,
+- `c_ushort` for `unsigned short`,
+- `c_int` for `int`,
+- `c_uint` for `unsigned int`,
+- `c_long` for `long`,
+- `c_ulong` for `unsigned long`,
+- `c_longlong` for `long long`,
+- `c_ulonglong` for `unsigned long long`,
+- `c_float` for `float` (always `f32`),
+- `c_double` for `double` (always `f64`).
+
+The [`libc`] crate offers more C compatible types that cover almost exhaustively
+the C standard library.
+
+#### FFI-PFTYPE — Rule: Use portable aliases `c_*` when binding to platform-dependent types
+
+In a secure Rust development, when interfacing with foreign code that
+uses platform-dependent types, such as C's `int` and `long`, Rust code MUST
+use portable type aliases, such as the ones provided by the standard library or the
+[`libc`] crate, rather than platform-specific types, except if
+the binding is automatically generated for each platform (see Note below).
+
+**Note (原典)**
+
+Automatic binding generation tools (e.g. [`cbindgen`], [`rust-bindgen`]) are able
+to ensure type consistency on a specific platform. They should be used during
+the build process for each target to ensure that the generation is sound for
+the specific target platform.
+
+[`libc`]: https://crates.io/crates/libc
+
+### Non-robust types: references, function pointers, enumerations {#robustness}
+
+A *trap representation* of a particular type is a representation (pattern of
+bits) that respects the type's representation constraints (such as size and
+alignment) but does not represent a valid value of this type and leads to
+undefined behavior.
+
+In simple terms, if a Rust variable is set to such an invalid value,
+anything can happen from a simple program crash to arbitrary code execution.
+When writing safe Rust, this cannot happen (except through a bug in the Rust
+compiler). However, when writing unsafe Rust and in particular in FFI, it is
+really easy.
+
+In the following, **non-robust types** are types that have such trap
+representations (at least one). A lot of Rust types are non-robust, even among
+the C-compatible types:
+
+- `bool` (1 byte, 256 representations, only 2 valid ones),
+- references,
+- function pointers,
+- enumerations,
+- floats (even if almost all languages have the same understanding of what is
+  a valid float),
+- compound types that contain a field of a non-robust type.
+
+On the other hand, integer types (`u*`/`i*`), packed compound types that contain
+no non-robust fields, are instances of *robust types*.
+
+Non-robust types are a difficulty when interfacing two languages. It revolves
+around deciding **which language of the two is responsible for asserting the
+validity of boundary-crossing values** and how to do it.
+
+#### FFI-CKNONROBUST — Rule: Do not use unchecked non-robust foreign values
+
+In a secure Rust development, there MUST NOT be any use of *unchecked* foreign
+values of non-robust types.
+
+In other words, either Rust translates robust types into non-robust types
+through explicit checking or the foreign side offers strong guarantees of the
+validity of the value.
+
+#### FFI-CKINRUST — Recommendation: Check foreign values in Rust
+
+In a secure Rust development, the validity checks of foreign values SHOULD
+be done in Rust when possible.
+
+Those generic rules are to be adapted to a specific foreign language or for the
+associated risks. Concerning languages, C is particularly unfit for offering
+guarantees about validity. However, Rust is not the only language to offer
+strong guarantees. For instance, some C++ subset (without reinterpretation)
+allows developers to do lot of type checking. Because Rust natively separates
+the safe and unsafe segments, the recommendation is to always use Rust to check
+when possible. Concerning risks, the most dangerous types are references,
+function references, and enumerations, and are discussed below.
+
+**Warning (原典)**
+
+Rust `bool` has been made equivalent to C99's `_Bool` (aliased as `bool`
+in `<stdbool.h>`) and C++'s `bool`. However, loading a value other than 0 and
+1 as a `_Bool`/`bool` is an undefined behavior *on both sides*.
+Safe Rust ensures that. Standard-compliant C and C++ compilers ensure that no
+value but 0 and 1 can be *stored* in a `_Bool`/`bool` value but cannot
+guarantee the absence of an *incorrect reinterpretation* (e.g., union types,
+pointer cast). To detect such a bad reinterpretation, sanitizers such as
+[LLVM]'s `-fsanitize=bool` may be used.
+
+[LLVM]: https://llvm.org/
+
+#### References and pointers
+
+The types `&mut T` and `&T` are subject to the same validity requirements as the
+type T, with the additional constraint that they must refer to a properly 
+allocated value. Any deviation leads to undefined behavior
+
+When binding to and from C, the problem is particularly severe because C has
+no references (in the sense of valid pointers) and the compiler does not offer
+any safety guarantee.
+
+When binding with C++, Rust references may be bound to C++ references in
+practice even though the actual ABI of an `extern "C"` function in C++ with
+references is “implementation-defined”. Also, the C++ code should be checked
+against pointer/reference confusion.
+
+Rust references may be used reasonably with other C-compatible languages
+including C variants allowing for non-null type checking, e.g. Microsoft SAL
+annotated code.
+
+By contrast, Rust’s raw pointer types (`*const T` and `*mut T`) defer validity
+checks from the point of binding to the point of use. Furthermore, they allow
+validity to be assessed primarily against `std/core::ptr::null()` (C's `(void*)0`)
+but also in some contexts against a known valid memory range (particularly in
+embedded systems or kernel-level programming) or against alignment requirements.
+
+Another advantage of using Rust
+pointers in FFI is that any load of the pointed value is clearly marked inside
+an `unsafe` block or function.
+
+#### FFI-CK-PTR-VALID — Rule: Check foreign pointers
+
+In a secure Rust development, any Rust code that dereferences a foreign
+pointer MUST check their validity beforehand.
+In particular, pointers MUST be checked to be non-null before any use.
+
+Stronger approaches are advisable when possible. They include checking
+pointers against known valid memory range, tagging (or signing) pointers
+(particularly applicable if the pointed value is only manipulated from Rust)
+or checking data alignment.
+
+#### FFI-INPUT-PTR — Recommendation: Use raw pointer to encode pointers coming from the external language
+
+In a secure Rust development, pointers received from the external language SHOULD be encoded by Rust *raw pointers*.
+
+Exceptions include:
+
+- Rust references that are opaque in the foreign language and only manipulated
+  from the Rust side,
+- `Option`-wrapped references (see Note below),
+- references bound to foreign safe references, e.g. from some augmented C
+  variants or from C++ compiled in an environment where `extern "C"`
+  references are encoded as pointers.
+
+Where the previous recommendation cannot be applied, pointer validity checks must
+be carried out by the language from which the pointer originates (that is, the external language).
+
+#### FFI-CK-INPUT-REF-VALID — Rule: Do not use unchecked foreign references
+
+In a secure Rust development, every foreign reference that is transmitted to
+Rust through FFI MUST be **checked on the foreign side** either automatically
+(for instance, by a compiler) or manually.
+
+Exceptions include Rust references in an opaque wrapping that are created
+and manipulated only from the Rust side and `Option`-wrapped references
+(see Note below).
+
+The following code a simple example of foreign pointer use in an exported Rust
+function:
+
+Note that the methods `as_ref` and `as_mut` (for mutable pointers) allows easy
+access to a reference while ensuring a null check in a very *Rusty* way.
+On the other side in C, it can be used as follows:
+
+**Note (原典)**
+
+`Option<&T>` and `Option<&mut T>` for any `T: Sized` are allowable in FFI
+instead of pointers with explicit nullity checks. Due to the Rust guaranteed
+“nullable pointer optimization”, a nullable pointer is acceptable on the C
+side. The C `NULL` is understood as `None` in Rust while a non-null
+pointer is encapsulated in `Some`. While quite ergonomic, this feature does
+not allow stronger validations such as memory range checking.
+
+#### Function pointers
+
+Function pointers that cross FFI boundaries may ultimately lead to arbitrary code
+execution and represent a real security risks.
+
+#### FFI-MARKEDFUNPTR — Rule: Mark function pointer types in FFI as `extern` and `unsafe`
+
+In a secure Rust development, any function pointer types at the FFI boundary
+MUST be marked `extern` (possibly with the specific ABI) and `unsafe`.
+
+Function pointers in Rust are a lot more similar to references than they are
+to normal pointers. In particular, the validity of function pointers cannot be
+checked directly on the Rust side. However, Rust offers two alternative
+possibilities:
+
+- use `Option`-wrapped function pointer and check against `null`:
+
+  
+
+  On the C side:
+
+  
+
+- use raw pointers with an `unsafe` transmutation to the function pointer type,
+  allowing more powerful checks at the cost of ergonomics.
+
+#### FFI-CKFUNPTR — Rule: Check foreign function pointers
+
+In a secure Rust development, any foreign function pointer MUST be checked at
+the FFI boundary.
+
+When binding with C or even C++, one cannot guarantee easily the validity of 
+function pointers. Moreover, C++ function objects (also known as functors) are not C-compatible.
+
+#### Enumerations
+
+Usually the possible bit patterns of valid `enum` values are really small with
+respect to the number of possible bit patterns of the same size. Mishandling an
+`enum` value provided by a foreign code may lead to type confusion and have
+severe consequences on software security. Unfortunately, checking an `enum`
+value at the FFI boundary is not simple on both sides.
+
+On the Rust side, it consists in actually using an integer type in the `extern`
+block declaration, a *robust* type, and then performing a checked conversion
+to the enum type.
+
+On the foreign side, it is possible only if the other language allows for
+stricter checks than plain C. `enum class` in C++ are for instance allowable.
+Note however that as for a reference, the actual `extern "C"` ABI of
+`enum class` is implementation-defined and should be verified for each
+environment.
+
+#### FFI-NOENUM — Rule: Do not use incoming Rust `enum` at FFI boundary
+
+In a secure Rust development, when interfacing with a foreign language,
+the Rust code MUST NOT accept incoming values of any Rust `enum` type.
+
+Exceptions include Rust `enum` types that are:
+
+- opaque in the foreign language and only manipulated from the
+  Rust side,
+- bound to safe enumerations in the foreign language, e.g. `enum class` types in C++.
+
+Concerning enumerations without field, crates like [`num_derive`] or [`num_enum`] allow
+developers to easily provide safe conversions from integer to enumeration and may
+be use to safely convert an integer (provided from a C `enum`) into a Rust enum.
+
+[num_derive]: https://crates.io/crates/num_derive
+[num_enum]: https://crates.io/crates/num_enum
+
+### Opaque types
+
+Opacifying types is a good way to increase modularity in software development.
+When doing multilingual development, it is something very common.
+
+#### FFI-R-OPAQUE — Recommendation: Use dedicated Rust types for foreign opaque types
+
+In a secure Rust development, when binding foreign opaque types, one SHOULD
+use pointers to dedicated opaque types rather than `c_void` pointers.
+
+Currently the recommended way to make a foreign opaque type is like so:
+
+The not-yet-stabilized [RFC 1861][RFC-1861] proposes to facilitate this encoding by allowing
+to declare opaque types in `extern` blocks.
+
+#### FFI-C-OPAQUE — Recommendation: Use incomplete C/C++ `struct` pointers to make type opaque
+
+In a secure Rust development, when interfacing with C or C++, Rust types that
+are to be considered opaque in C/C++ SHOULD be translated as incomplete
+`struct` types (i,e., declared without definition) and be provided with
+a dedicated constructor and destructor.
+
+Example of opaque Rust type:
+
+### Preserving Rust memory model {#ffi-memory-model}
+
+The Rust compiler uses information from the *borrow checker* to optimize code execution.
+In doing so, it assumes that the conditions verified by the borrow checker,
+in particular the [aliasing](https://doc.rust-lang.org/nomicon/aliasing.html) rules,
+are valid, and it bases its optimizations on these assumptions. More details about this
+memory model can be found in the [`core` API documentation][memory-model].
+
+Violating these assumptions can therefore lead to the occurrence of UB.
+
+#### FFI-CK-REF-MODEL — Rule: Preservation of Rust’s memory model when transferring indirections at its boundary
+
+In secure development in Rust, the use of indirection (pointers, references)
+crossing the boundary MUST preserve Rust’s memory model.
+
+**Example (原典)**
+
+In the following example, the Rust code manipulates pointers originating from C,
+showing the importance of respecting Rust’s invariants from the C side.
+
+The `swap` function defined below produces undefined behaviour (UB) if it is 
+called from the following C code, because Rust’s memory model forbids the *aliasing* of mutable references.
+
+**Example (原典)**
+
+In the following example, the Rust code passes a pointer to C code,
+illustrating the importance of reflecting, in Rust’s type system,
+the operations performed on the C side.
+
+The imported function `inc_wrap` increments the variable `a`.
+
+The Rust code passes a pointer to the immutable variable `val`
+to the C function, thereby violating Rust’s memory model and resulting in *UB*.
+
+In this example, the error could have been detected by placing stronger constraints
+on the binding to the C library API, either by modifying its signature directly,
+or by wrapping the `inc_wrap` function, as in the following example.
+
+The `safe_inc_wrap` function is indeed *safe* because:
+
+* any memory value can be interpreted as a value of type `u8` (the `u8` type is [robust](https://github.com/ANSSI-FR/rust-guide/blob/3f9e2e28095d0eeb35ed61e212a82be12fde4884/src/en/unsafe/ffi.md#robustness)),
+* the type of the `safe_inc_wrap` function enforces the *non-aliasing* and *mutability* constraints,
+* the C code neither frees the pointer nor “retains” it (via a `static` variable, for example) beyond the call to the `inc_wrap` function.
+
+## Memory and resource management
+
+Programming languages handle memory in various ways. As a result, it is
+important to known when transmitting data between Rust and another language
+which language is responsible for reclaiming the memory space for this data.
+The same is true for other kind of resources such as sockets or files.
+
+Rust tracks variable ownership and lifetime to determine at compilation time if
+and when memory should be deallocated. Thanks to the [`Drop`] trait, one can
+exploit this system to reclaim other kind of resources such as file or network
+access. *Moving* some piece of data from Rust to a foreign language means also
+abandoning the possible reclamations associated with it.
+
+#### FFI-MEM-NODROP — Rule: Do not use types that implement `Drop` at FFI boundary
+
+In a secure Rust development, Rust code MUST NOT implement [`Drop`] for any
+types that are directly transmitted to foreign code  (i.e. not through a
+pointer or reference).
+
+In fact, it is advisable to only use `Copy` types. Note that `*const T` is
+`Copy` even if T is not.
+
+However if not reclaiming memory and resources is bad, using reclaimed memory or
+reclaiming twice some resources is worst from a security point of view. In order
+to correctly release a resource only once, one must known which language is
+responsible for allocating and deallocating memory.
+
+#### FFI-MEM-OWNER — Rule: Ensure clear data ownership in FFI
+
+In a secure Rust development, when data of some type passes without copy
+through a FFI boundary, one MUST ensure that:
+
+- A single language is responsible for both allocation and deallocation of
+  data.
+- The other language MUST NOT allocate or free the data directly but use
+  dedicated foreign functions provided by the chosen language.
+
+Ownership is not enough. It remains to ensure the correct lifetime, mostly that
+no use occurs after reclamation. It is a lot more challenging. When the other
+language is responsible for the memory, the best way is to provide a safe
+wrapper around the foreign type:
+
+#### FFI-MEM-WRAPPING — Recommendation: Wrap foreign data in memory releasing wrapper
+
+In a secure Rust development, any non-sensitive foreign piece of data that are
+allocated and deallocated in the foreign language SHOULD be encapsulated in a
+[`Drop`] type in such a way as to provide automatic deallocation in Rust,
+through an automatic call to the foreign language deallocation routine.
+
+A simple example of Rust wrapping over an external opaque type:
+
+**Warning (原典)**
+
+Because panics may lead to not running the `Drop::drop` method this solution
+is not sufficient for sensitive deallocation (such as wiping sensitive data)
+except if the code is guaranteed to never panic.
+
+For wiping sensitive data, one could address the issue with a dedicated
+panic handler.
+
+When the foreign language is the one exploiting Rust allocated resources, it is
+a lot more difficult to offer any guarantee.
+
+In C for instance, there is no easy way to check that the appropriate destructor
+is called. A possible approach is to exploit callbacks to ensure that the
+reclamation is done.
+
+The following Rust code is a **thread-unsafe** example of a C-compatible API
+that provides a callback to ensure safe resource
+reclamation:
+
+A compatible C call:
+
+## Panics with foreign code {#ffi-panic}
+
+When calling Rust code from another language (e.g. C), the Rust code should
+be careful to never panic:
+since version [1.81.0](https://releases.rs/docs/1.81.0/), stack unwinding from
+Rust code into foreign code is not an undefined behavior anymore, but strict separation
+of stack unwinding between languages is recommended in order to prevent potential unwanted abortion[^ffi-panic-abort].
+
+[^ffi-panic-abort]: More details can be found in the [unwinding specification][unwinding].
+
+#### FFI-NOPANIC — Recommendation: Handle `panic!` correctly in FFI
+
+Rust code called from FFI SHOULD either ensure the function cannot panic, or use
+a panic handling mechanism (such as [`std::panic::catch_unwind`],
+[`std::panic::set_hook`], [`#[panic_handler]`](https://doc.rust-lang.org/reference/panic.html#r-panic.panic_handler)) to ensure the rust code will not
+abort or return in an unstable state.
+
+Note that [`catch_unwind`] will only catch unwinding panics, not those that abort
+the process.
+
+[`catch_unwind`]: https://doc.rust-lang.org/std/panic/fn.catch_unwind.html
+[`std::panic::catch_unwind`]: https://doc.rust-lang.org/std/panic/fn.catch_unwind.html
+[`std::panic::set_hook`]: https://doc.rust-lang.org/std/panic/fn.set_hook.html
+
+### `no_std`
+
+In the case of `#![no_std]` program, a panic handler ([`#[panic_handler]`](https://doc.rust-lang.org/reference/panic.html#r-panic.panic_handler)) must
+be defined to ensure security. The panic handler should be written with great
+care in order to ensure both the safety and security of the program.
+
+Another approach is to simply ensure that there is no use of `panic!` with the
+[`panic-never`] crate. Like [`no-panic`], [`panic-never`] relies on a linking
+trick: the linker fails if a non-trivially-dead branch leads to `panic!`.
+
+[`panic-never`]: https://crates.io/crates/panic-never
+[`no-panic`]: https://crates.io/crates/no-panic
+
+## Binding a Rust library in another language
+
+#### FFI-CAPI — Rule: Expose dedicated C-compatible API only
+
+In a secure Rust development, exposing a Rust library to a foreign language
+SHOULD only be done through a **dedicated C-compatible API**.
+
+The crate [`cbindgen`] may be used to automatically generate C or C++ bindings to
+the Rust C-compatible API of a Rust library.
+
+### Minimal example of a C-exported Rust library
+
+`src/lib.rs`:
+
+Using [`cbindgen`] (`cbindgen -l c > counter.h`), one can generate a consistent
+C header, `counter.h`:
+
+`counter_main.c`:
+
+[`Drop`]: https://doc.rust-lang.org/std/ops/trait.Drop.html
+
+[RFC-2195]: https://rust-lang.github.io/rfcs/2195-really-tagged-unions.html
+[RFC-1861]: https://rust-lang.github.io/rfcs/1861-extern-types.html
+[memory-model]: https://doc.rust-lang.org/core/ptr/index.html
+[unwinding]: https://doc.rust-lang.org/stable/reference/items/functions.html#unwinding

@@ -1,5 +1,29 @@
 # 原典の出典・権利表示
 
+## 現行 secure-coding-review（2026-11-09確認）
+
+許諾者・配布者はtug-hourです。独自の指示・日本語案内・構成のうち許諾できる部分はCC BY-SA 4.0。第三者の原文抜粋・翻案は各条件を保持します。原典の著作者表示、既存の免責・商標表示とライセンスを削除しません。元の作品全体をtug-hourの単独著作物としません。
+
+| 原典・帰属 | 配布内容・変更 | 条件と確認元 |
+|---|---|---|
+| OWASP ASVS 5.0.0、© 2008–2025 The OWASP Foundation / contributors | 345要求の英語本文・ID・水準を章別配置、日本語案内を追加 | [CC BY-SA 4.0の原典表示](https://github.com/OWASP/ASVS/blob/v5.0.0/5.0/en/0x01-Frontispiece.md)。同条件で提供。条項全文はroot LICENSE |
+| OWASP Cheat Sheet Series contributors | 固定87a1fafの10記事から対策節を抜粋、コード/図を省き日本語案内・採否・固定リンクを追加 | [固定版LICENSE](https://github.com/OWASP/CheatSheetSeries/blob/87a1faf18a29a5c33d040b000eb3c60330c30b2c/LICENSE.md)、CC BY-SA 4.0。[同梱条項](secure-coding-review/references/owasp/LICENSE-CC-BY-SA-4.0.md)は公式固定版と一致 |
+| Carnegie Mellon University / SEI CERT、© 2026 | 固定4a2cb5cのC規範/例外/説明を抜粋・機能別配置、日本語案内。コード例・図は除外 | [公式LICENSE](https://github.com/cmu-sei/secure-coding-standards/blob/4a2cb5ce988376f2bae03b1b269e7deb9179bf47/LICENSE)、文章CC BY 4.0、コード例MIT。[同梱LICENSE](secure-coding-review/references/cert-c/LICENSE.txt)は公式と一致。商標・免責・資金提供表示を保持。err.md内のローカルパスを公式サイトへ置換 |
+| IPA『安全なウェブサイトの作り方』改訂第7版第4刷、独立行政法人情報処理推進機構 | 第1章47対策のID・前提を参照し独自のレビュー条件へ再構成。原文・図・コードの転載はしない | [原典](https://www.ipa.go.jp/security/vuln/websecurity/about.html)、[サイト条件](https://www.ipa.go.jp/siteinfo.html)、[引用・転載FAQ](https://www.ipa.go.jp/publish/faq.html)。出所と再構成を明示、原典へのCC再許諾はしない。各節に個別のURL・版・変更表示 |
+| Souppaya / Scarfone / Dodson、NIST SP 800-218 SSDF 1.1 (2022) | Table 1のTasks42件を抜粋・群別配置、日本語案内。各ファイルに指定の書誌と帰属表示 | [DOI](https://doi.org/10.6028/NIST.SP.800-218)、[NIST Technical Series再掲載方針](https://www.nist.gov/open/copyright-fair-use-and-licensing-statements-srd-data-software-and-technical-series-publications)。原典の米国内の著作権保護対象外という扱いを米国外へ一般化せず、NISTによる承認を示さない |
+| ANSSI-FR、Secure Rust Guidelines | 固定3f9e2e2の規範・前提・例外を抜粋、日本語案内。コード例・図を除外 | [固定版LICENSE](https://github.com/ANSSI-FR/rust-guide/blob/3f9e2e28095d0eeb35ed61e212a82be12fde4884/LICENSE.md)、Open Licence 2.0。[同梱条項](secure-coding-review/references/rust/LICENSE.md)は公式と一致。帰属・更新/変更情報を保持 |
+| The Go Authors | Security Best Practicesの6節を独自の評価案内へ整理。コード例なし | [原典](https://go.dev/doc/security/best-practices)、[Copyright](https://go.dev/copyright)。サイト本文は特記を除きCC BY 4.0、コードBSD。原典の個別条件を一律に扱わない |
+
+上記は配布範囲と確認根拠を示し、第三者の権利が一切存在しないという保証ではありません。原典のリンク先にある別作品・規格・コード・画像まで再配布する許可は含めません。原典本文中の著作者・参考文献の氏名等は権利表示・出典情報として保持しています。
+
+公開用編集：sources.mdの内部リンクと公開前の記述を更新し、CERT err.mdのローカルパスを公式サイトへ置換。その他82ファイルは導入済み版とbyte一致。性能評価・レビューの指示変更は行っていません。
+
+## 旧版 v0.3-rc.1 の権利表示（保存）
+
+以下は旧版の確認範囲・日付・条件の保存記録で、上記現行版への一括適用ではありません。
+
+# 原典の出典・権利表示
+
 本ファイルは配布候補v0.3-rc.1の原典・権利表示です。許諾者・配布者はtug-hourで、tug-hourが許諾できる整理・説明部分にCC BY-SA 4.0を適用します。対象範囲は[README](README.md)、正式条項は[LICENSE](LICENSE)を参照してください。第三者の部分には各原典の条件が残ります。原典そのものを同梱せず、原典の安全原則・技術観点を参照し、本スキル側で日本語の5分野に整理しています。選別・証拠再利用・終了・報告は本スキルの運用設計で、レビュー範囲や報告項目には原典と共通する考え方もあります。各原典の全規則・章構成・報告テンプレートを翻訳・再現したものではありません。権利表示確認は2026-10-28〜29、表現の限定比較は2026-10-29（日本時間）。最新版全体の技術精査をした日付ではありません。
 
 本スキル独自の構成と原典の規範要件を区別し、原典の団体による認証・支持・承認は主張しません。以下は現在の一次資料に示された条件であり、過去の別版や、本原案の全表現について権利処理が完了したという宣言ではありません。
