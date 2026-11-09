@@ -1,18 +1,20 @@
 # 公開対象と差分
 
-対象は下記99ファイルのみ。現行スキル84ファイル、旧スキル9ファイル、root文書6ファイル。非公開リポジトリの履歴・設計書・サンプル・生報告・計測・セッション情報・ローカル環境は取り込まない。2担当方式は未実装の状態説明だけをREADMEに記載する。
+対象は下記100ファイルのみ。現行スキル85ファイル、旧スキル9ファイル、root文書6ファイル。非公開リポジトリの履歴・設計書・サンプル・生報告・計測・セッション情報・ローカル環境は取り込まない。必要時の2担当方式の本文と補完手順を含む。
 
 ## 導入済み版との対応
 
-2026-11-09に導入済み84ファイルと開発版の一致を確認。SKILL.mdを含む82ファイルは公開コピーでも同一。sources.mdは内部リンク/公開前の記述、cert-c/err.mdは原典由来ローカルリンクだけを公開用に整理した。原典の条件・数値・例外とスキルの動作指示は変えていない。全84ファイルはMarkdown/textで、実行物・symlink・追加依存なし。
+2026-11-10に導入済み85ファイルと開発版の一致を確認。SKILL.mdと独立補完手順を含む83ファイルは公開コピーでも同一。sources.mdは内部リンク/公開前の記述、cert-c/err.mdは原典由来ローカルリンクだけを公開用に整理した。導入版から公開用に変換する際、原典の条件・数値・例外とスキルの動作指示は変えていない。全85ファイルはMarkdown/textで、実行物・symlink・追加依存なし。
+
+今回の前回公開版からの差分は、SKILL.mdの更新、references/scoped-supplement.mdの追加、README・本一覧・権利表示の更新のみ。非採用の補助スクリプトや試行用テストは含めない。
 
 ## 権利・情報の確認
 
-7系統の帰属・版・変更・条件はTHIRD-PARTY-NOTICES.mdと各参照に記載。OWASP/CERT/ANSSIの同梱LICENSE3件は公式固定版とbyte一致を確認。IPAのサイト条件/FAQ、ASVSの表示、GoのCopyright、NIST再掲載方針も確認。原典由来の著作者名・公開書誌情報は保持し、個人情報の削除を理由に必須の帰属を消さない。
+前回確認の記録を再利用する。原典参照資料・同梱ライセンスが前回公開版と同一であることを確認した。7系統の帰属・版・変更・条件はTHIRD-PARTY-NOTICES.mdと各参照に記載。OWASP/CERT/ANSSIの同梱LICENSE3件は公式固定版とbyte一致を確認。IPAのサイト条件/FAQ、ASVSの表示、GoのCopyright、NIST再掲載方針も確認。原典由来の著作者名・公開書誌情報は保持し、個人情報の削除を理由に必須の帰属を消さない。
 
 配布ファイル全体を対象にローカルパス・秘密鍵/トークン等の代表的表現とリンクを確認し、該当するローカルパス1件は公開用コピーから除去。ユーザーの実データ・認証情報・連絡先を取り込まず、許諾者/配布者表示はtug-hourのみ。すべての情報漏えいや第三者の権利不存在を保証するものではない。旧版フォルダ・LICENSE・SECURITY.mdは変更せず、旧READMEはLEGACY.mdにbyte一致で保持する。
 
-性能比較・新しいレビュー試験・スキル導入・課金API・マージは実施しない。
+今回の公開反映では性能比較・新しいレビュー試験・スキル導入・課金API・マージは実施しない。READMEの動作確認の説明は、公開候補と同一のスキル本文・補完手順を用いた既存記録の再利用である。
 
 ## ファイル一覧
 
@@ -100,6 +102,7 @@
 - `secure-coding-review/references/rust/unsafe-generalities.md`
 - `secure-coding-review/references/rust/unsafe-memory.md`
 - `secure-coding-review/references/rust/unsafe.md`
+- `secure-coding-review/references/scoped-supplement.md`
 - `secure-coding-review/references/sources.md`
 - `secure-coding-review/references/ssdf.md`
 - `secure-coding-review/references/ssdf/po.md`
